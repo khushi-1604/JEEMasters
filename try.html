@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Connection Lines Under Circles</title>
+<!-- Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet" />
+<style>
+  body {
+    margin: 0;
+    background: linear-gradient(135deg, #f0f0f0, #d0d0d0);
+    overflow: auto;
+    font-family: 'Orbitron', sans-serif;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .level {
+    fill: #fff;
+    stroke: #4CAF50;
+    stroke-width: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .locked {
+    fill: #ccc;
+    stroke: #999;
+    opacity: 1.6;
+    cursor: not-allowed;
+  }
+  .completed {
+    fill: #4CAF50;
+    stroke: #2E7D32;
+  }
+  .levelText {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    fill: #333;
+    dominant-baseline: middle;
+    text-anchor: middle;
+  }
+</style>
+</head>
+<body>
+<svg id="svgContainer"></svg>
+<script>
+const totalLevels = 15;
+const svg = document.getElementById('svgContainer');
+
+// Create two groups: one for lines, one for circles/text
+const linesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+const circlesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+svg.appendChild(linesGroup);
+svg.appendChild(circlesGroup);
+
+const levels = [];
+const levelRadius = 30;
+const verticalSpacing = 150;
+const zigzagAmplitude = 250;
+
+// Generate positions
+for (let i = 1; i <= totalLevels; i++) {
+  const y = (totalLevels - i + 1) * verticalSpacing;
+  const direction = (i % 2 === 1) ? 1 : -1;
+  const x = (window.innerWidth / 2) + direction * zigzagAmplitude;
+  levels.push({ index: i, x, y });
+}
+
+// Set SVG height
+svg.setAttribute('height', levels[0].y + levelRadius + 50);
+svg.setAttribute('width', '100%');
+
+// Draw connection lines first
+for (let i = 0; i < levels.length - 1; i++) {
+  const start = levels[i];
+  const end = levels[i + 1];
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  const controlX = (start.x + end.x) / 2;
+  const controlY = Math.min(start.y, end.y) - 100; // curve height
+  path.setAttribute("d", `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`);
+  path.setAttribute("stroke", `hsl(${(i * 360 / (levels.length -1))}, 80%, 50%)`);
+  path.setAttribute("stroke-width", "6");
+  path.setAttribute("fill", "none");
+  path.style.filter = "drop-shadow(0 0 8px currentColor)";
+  path.style.pointerEvents = "none"; // Make lines ignore pointer events
+  linesGroup.appendChild(path);
+}
+
+// Draw circles and labels after lines (so they overlay)
+const levelNodes = [];
+for (let i = 0; i < levels.length; i++) {
+  const lvl = levels[i];
+
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("transform", `translate(${lvl.x}, ${lvl.y})`);
+  g.setAttribute("cursor", "pointer");
+  g.setAttribute("data-level", lvl.index);
+
+  // Circle
+  const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  circle.setAttribute("cx", 0);
+  circle.setAttribute("cy", 0);
+  circle.setAttribute("r", levelRadius);
+  circle.classList.add('level');
+  if (i > 0) {
+    circle.classList.add('locked');
+  }
+  g.appendChild(circle);
+
+  // Number
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  text.setAttribute("x", 0);
+  text.setAttribute("y", 0);
+  text.classList.add('levelText');
+  text.textContent = lvl.index;
+  g.appendChild(text);
+
+  // Store reference
+  levelNodes.push({
+    index: lvl.index,
+    x: lvl.x,
+    y: lvl.y,
+    group: g,
+    circle: circle,
+    unlocked: i === 0,
+    completed: false
+  });
+
+  // Add click event
+  g.addEventListener('click', () => {
+    if (circle.classList.contains('locked')) return;
+    alert(`Starting Level ${lvl.index}`);
+    completeLevel(lvl.index);
+  });
+
+  circlesGroup.appendChild(g);
+}
+
+// Function to unlock next level
+function completeLevel(index) {
+  const lvl = levelNodes[index - 1];
+  if (!lvl.unlocked) return;
+  lvl.circle.classList.remove('locked');
+  lvl.circle.classList.add('completed');
+  lvl.unlocked = false;
+  if (index < totalLevels) {
+    const nextLvl = levelNodes[index];
+    nextLvl.circle.classList.remove('locked');
+    nextLvl.circle.classList.add('unlocked');
+    nextLvl.unlocked = true;
+  }
+}
+
+// Handle resize
+window.addEventListener('resize', () => {
+  // Remove all lines
+  while (linesGroup.firstChild) linesGroup.removeChild(linesGroup.firstChild);
+
+  // Recalculate positions
+  for (let i = 0; i < levels.length; i++) {
+    const direction = (levels[i].index % 2 === 1) ? 1 : -1;
+    levels[i].x = (window.innerWidth / 2) + direction * zigzagAmplitude;
+    levels[i].y = (totalLevels - levels[i].index + 1) * verticalSpacing;
+    levelNodes[i].group.setAttribute("transform", `translate(${levels[i].x}, ${levels[i].y})`);
+  }
+
+  // Redraw lines
+  for (let i = 0; i < levels.length - 1; i++) {
+    const start = levels[i];
+    const end = levels[i + 1];
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const controlX = (start.x + end.x) / 2;
+    const controlY = Math.min(start.y, end.y) - 100;
+    path.setAttribute("d", `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`);
+    path.setAttribute("stroke", `hsl(${(i * 360 / (levels.length -1))}, 80%, 50%)`);
+    path.setAttribute("stroke-width", "6");
+    path.setAttribute("fill", "none");
+    path.style.filter = "drop-shadow(0 0 8px currentColor)";
+    path.style.pointerEvents = "none";
+    linesGroup.appendChild(path);
+  }
+});
+
+// Initial draw - lines are already drawn above in the main loop
+window.onload = () => {
+  // Set height
+  const lastY = levels[0].y;
+  svg.setAttribute('height', lastY + levelRadius + 50);
+  // Lines are already drawn in the main code above, no need to redraw here
+};
+</script>
+</body>
+</html>
